@@ -1,7 +1,7 @@
 import z from "zod";
 
 export const PlayerSchema = z.object({
-    id: z.uuid(),
+    id: z.string(),
     name: z.string(),
     score: z.number().default(0),
 });

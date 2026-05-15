@@ -1,0 +1,6 @@
+@layer vars, reset, base, component, utils;
+
+@import "./vars.css" layer(vars);
+@import "./reset.css" layer(reset);
+@import "./base.css" layer(base);
+@import "./utils.css" layer(utils);
