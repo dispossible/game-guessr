@@ -1,6 +1,6 @@
 import z from "zod";
 import { MessageSchema, MessageType } from "#shared/types/Message";
-import { initNewRoom, joinRoom, leaveRoom } from "../utils/roomStore";
+import { handlePeerClose, initNewRoom, joinRoom, leaveRoom } from "../utils/roomStore";
 
 export default defineWebSocketHandler({
     open(peer) {
@@ -9,7 +9,9 @@ export default defineWebSocketHandler({
 
     close(peer) {
         console.log(`[ws] Connection closed: ${peer.id}`);
-        leaveRoom(peer);
+        // Keep the player in their room so a refresh can reattach to the same
+        // clientId and keep their score. Explicit leaves go through leaveRoom.
+        handlePeerClose(peer);
     },
 
     message(peer, message) {
@@ -25,11 +27,11 @@ export default defineWebSocketHandler({
 
         switch (data.type) {
             case MessageType.createRoom:
-                initNewRoom(peer, data.playerName);
+                initNewRoom(peer, data.playerName, data.clientId);
                 break;
 
             case MessageType.joinRoom:
-                joinRoom(peer, data.roomId, data.playerName);
+                joinRoom(peer, data.roomId, data.playerName, data.clientId);
                 break;
 
             case MessageType.leaveRoom:

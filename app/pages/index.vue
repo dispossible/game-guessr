@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useGameStore } from "~/stores/game";
 
 const game = useGameStore();
 
-const name = ref("");
+const name = ref(game.playerName ?? "");
 const joinRoomId = ref("");
+
+onMounted(() => {
+    game.restoreSession();
+});
 
 const trimmedName = computed(() => name.value.trim());
 const canSubmit = computed(() => trimmedName.value.length > 0);
@@ -34,18 +38,16 @@ function onLeave() {
             <span class="status" :data-status="game.status">{{ game.status }}</span>
         </header>
 
-        <section v-if="!game.inRoom" class="panel">
+        <section v-if="game.status === 'connecting'" class="panel">
+            <h2>Connecting...</h2>
+        </section>
+
+        <section v-else-if="!game.inRoom" class="panel">
             <h2>Join a game</h2>
 
             <label class="field">
                 <span>Your name</span>
-                <input
-                    v-model="name"
-                    type="text"
-                    placeholder="e.g. Alex"
-                    maxlength="24"
-                    autocomplete="off"
-                />
+                <input v-model="name" type="text" placeholder="e.g. Alex" maxlength="100" autocomplete="off" />
             </label>
 
             <div class="actions">
@@ -60,12 +62,7 @@ function onLeave() {
                         autocomplete="off"
                         class="room-input"
                     />
-                    <button
-                        :disabled="!canSubmit || !joinRoomId.trim()"
-                        @click="onJoin"
-                    >
-                        Join
-                    </button>
+                    <button :disabled="!canSubmit || !joinRoomId.trim()" @click="onJoin">Join</button>
                 </div>
             </div>
 

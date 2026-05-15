@@ -20,6 +20,7 @@ export const JoinRoomMessageSchema = z.object({
     type: z.literal(MessageType.joinRoom),
     roomId: z.string(),
     playerName: z.string(),
+    clientId: z.string(),
 });
 export type JoinRoomMessage = z.infer<typeof JoinRoomMessageSchema>;
 
@@ -48,6 +49,7 @@ export type LeftRoomMessage = z.infer<typeof LeftRoomMessageSchema>;
 export const CreateRoomMessageSchema = z.object({
     type: z.literal(MessageType.createRoom),
     playerName: z.string(),
+    clientId: z.string(),
 });
 export type CreateRoomMessage = z.infer<typeof CreateRoomMessageSchema>;
 

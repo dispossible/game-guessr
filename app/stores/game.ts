@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
-import type { GameState, Player } from "#shared/types/GameState";
+import type { GameState } from "#shared/types/GameState";
 import { type Message, MessageSchema, MessageType } from "#shared/types/Message";
+import { generateRandomId } from "#shared/utils/randomId";
 
 type ConnectionStatus = "idle" | "connecting" | "open" | "closed";
 
@@ -8,9 +9,49 @@ interface GameStoreState {
     socket: WebSocket | null;
     status: ConnectionStatus;
     gameState: GameState | null;
-    playerId: string | null;
-    playerName: string;
+    playerName: string | null;
+    clientId: string;
     error: string | null;
+}
+
+const CLIENT_NAME_KEY = "game-guessr-client-name";
+const ROOM_ID_KEY = "game-guessr-room-id";
+const CLIENT_ID_KEY = "game-guessr-client-id";
+const CLIENT_ID_LENGTH = 32;
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+// Thin wrappers around useCookie so the same options are used everywhere the
+// cookie is read or written.
+function clientIdCookie() {
+    return useCookie<string | null>(CLIENT_ID_KEY, {
+        maxAge: COOKIE_MAX_AGE,
+        sameSite: "lax",
+    });
+}
+
+function clientNameCookie() {
+    return useCookie<string | null>(CLIENT_NAME_KEY, {
+        maxAge: COOKIE_MAX_AGE,
+        sameSite: "lax",
+    });
+}
+
+function roomIdCookie() {
+    return useCookie<string | null>(ROOM_ID_KEY, {
+        maxAge: COOKIE_MAX_AGE,
+        sameSite: "lax",
+    });
+}
+
+// A stable per-browser id that the server uses as the player id, so a refresh
+// reattaches to the same player (and keeps their score) instead of creating a
+// new one. Generated lazily and persisted to a cookie so SSR sees it too.
+function ensureClientId(): string {
+    const cookie = clientIdCookie();
+    if (cookie.value) return cookie.value;
+    const generated = generateRandomId(CLIENT_ID_LENGTH);
+    cookie.value = generated;
+    return generated;
 }
 
 export const useGameStore = defineStore("game", {
@@ -18,8 +59,8 @@ export const useGameStore = defineStore("game", {
         socket: null,
         status: "idle",
         gameState: null,
-        playerId: null,
-        playerName: "",
+        playerName: clientNameCookie().value ?? null,
+        clientId: ensureClientId(),
         error: null,
     }),
 
@@ -83,12 +124,16 @@ export const useGameStore = defineStore("game", {
 
         async createRoom(playerName: string) {
             await this.connect();
-            this.send({ type: MessageType.createRoom, playerName });
+            this.playerName = playerName;
+            clientNameCookie().value = playerName;
+            this.send({ type: MessageType.createRoom, playerName, clientId: this.clientId });
         },
 
         async joinRoom(roomId: string, playerName: string) {
             await this.connect();
-            this.send({ type: MessageType.joinRoom, roomId, playerName });
+            this.playerName = playerName;
+            clientNameCookie().value = playerName;
+            this.send({ type: MessageType.joinRoom, roomId, playerName, clientId: this.clientId });
         },
 
         leaveRoom() {
@@ -96,6 +141,14 @@ export const useGameStore = defineStore("game", {
                 this.send({ type: MessageType.leaveRoom });
             }
             this.gameState = null;
+            roomIdCookie().value = null;
+        },
+
+        async restoreSession() {
+            const roomId = roomIdCookie().value;
+            if (roomId && this.playerName) {
+                await this.joinRoom(roomId, this.playerName);
+            }
         },
 
         handleMessage(event: MessageEvent) {
@@ -119,12 +172,7 @@ export const useGameStore = defineStore("game", {
             switch (message.type) {
                 case MessageType.gameState:
                     this.gameState = message.gameState;
-                    // The server assigns the authoritative player id; pick ours
-                    // out of the player list so it matches the peer id.
-                    if (this.playerName) {
-                        const me = message.gameState.players.find((p) => p.name === this.playerName);
-                        if (me) this.playerId = me.id;
-                    }
+                    roomIdCookie().value = message.gameState.id;
                     this.error = null;
                     break;
 
@@ -143,6 +191,7 @@ export const useGameStore = defineStore("game", {
 
                 case MessageType.failedToJoinRoom:
                     this.error = `Failed to join room "${message.roomId}"`;
+                    roomIdCookie().value = null;
                     break;
             }
         },
