@@ -35,6 +35,9 @@ const linkProps = computed(() =>
 
 <style scoped>
 .button {
+    --button-background: var(--color-accent);
+    --button-color: hsl(from var(--color-bg) h s calc(l - 20));
+
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -42,22 +45,36 @@ const linkProps = computed(() =>
     padding: 0.5lh 2ch;
     border-radius: 8px;
     cursor: pointer;
-    border: 0;
+    border: 1px solid transparent;
+    background: var(--button-background);
+    color: var(--button-color);
+    transition: background-color 150ms ease;
 
     &[data-variant="primary"] {
-        background: var(--accent);
-        color: #0b0e15;
     }
 
     &[data-variant="danger"] {
-        background: var(--danger);
-        color: #0b0e15;
+        --button-background: hsl(from var(--color-danger) h calc(s - 30) calc(l + 10));
     }
 
     &[data-variant="ghost"] {
-        background: transparent;
-        color: var(--text);
-        border: 1px solid var(--border);
+        --button-background: transparent;
+        --button-color: var(--color-text);
+        border-color: var(--color-accent);
+    }
+
+    &:hover {
+        background: hsl(from var(--button-background) h s calc(l + 5));
+    }
+
+    &:active {
+        background: hsl(from var(--button-background) h s calc(l + 10));
+    }
+
+    &:disabled {
+        background: hsl(from var(--button-background) h calc(s - 40) calc(l - 30));
+        color: hsl(from var(--button-color) h calc(s - 10) calc(l - 10));
+        cursor: not-allowed;
     }
 }
 </style>

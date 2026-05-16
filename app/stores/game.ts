@@ -73,8 +73,14 @@ export const useGameStore = defineStore("game", {
 
     actions: {
         connect(): Promise<void> {
-            if (this.socket && (this.status === "open" || this.status === "connecting")) {
+            if (this.socket && this.status === "open") {
                 return Promise.resolve();
+            }
+            if (this.socket && this.status === "connecting") {
+                return new Promise((resolve, reject) => {
+                    this.socket?.addEventListener("open", () => resolve());
+                    this.socket?.addEventListener("error", () => reject(new Error("Failed to connect to WebSocket")));
+                });
             }
 
             this.status = "connecting";
