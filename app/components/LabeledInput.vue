@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import type { BaseInputProps } from "./BaseInput.vue";
+import type { BaseSelectProps } from "./BaseSelect.vue";
+
+type InputMode = BaseInputProps & { select?: never };
+type SelectMode = BaseSelectProps & { type?: never; select: true };
 
 const props = defineProps<
-    BaseInputProps & {
+    (InputMode | SelectMode) & {
         label: string;
         monospace?: boolean;
     }
@@ -16,9 +20,17 @@ defineEmits<{
 <template>
     <label class="labeled-input">
         <span class="label">{{ label }}</span>
-        <BaseInput
+        <BaseSelect
+            v-if="props.select"
             :model-value="modelValue"
-            v-bind="props"
+            v-bind="(props as BaseSelectProps)"
+            :class="{ monospace }"
+            @update:model-value="$emit('update:modelValue', $event)"
+        />
+        <BaseInput
+            v-else
+            :model-value="modelValue"
+            v-bind="(props as BaseInputProps)"
             :class="{ monospace }"
             @update:model-value="$emit('update:modelValue', $event)"
         />

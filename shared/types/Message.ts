@@ -1,5 +1,5 @@
 import z from "zod";
-import { GameStateSchema, PlayerSchema } from "./GameState";
+import { DifficultySchema, GameStateSchema, PlayerSchema } from "./GameState";
 
 export const MessageTypeSchema = z.enum([
     "joinRoom",
@@ -68,6 +68,7 @@ export const StartRoundMessageSchema = z.object({
     // Optional settings only applied when starting the very first round (lobby -> playing)
     roundCount: z.number().int().min(1).max(30).optional(),
     roundDuration: z.number().int().min(1000).max(600000).optional(),
+    difficulty: DifficultySchema.optional(),
 });
 export type StartRoundMessage = z.infer<typeof StartRoundMessageSchema>;
 

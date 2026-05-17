@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { useGameStore } from "~/stores/game";
+import { type Difficulty, DIFFICULTY_OPTIONS } from "#shared/types/GameState";
 
 const game = useGameStore();
 
 const roundCount = ref(game.gameState?.roundCount ?? 5);
-const roundDuration = ref(game.gameState?.roundDuration / 1000 ?? 60);
+const roundDuration = ref((game.gameState?.roundDuration ?? 60000) / 1000);
+const difficulty = ref<Difficulty>(game.gameState?.difficulty ?? "medium");
+
+const difficultyOptions = Object.entries(DIFFICULTY_OPTIONS).map(([key, config]) => ({
+    value: key,
+    label: config.label,
+}));
 
 async function onStartGame() {
-    await game.startGame(roundCount.value, roundDuration.value * 1000);
+    await game.startGame(roundCount.value, roundDuration.value * 1000, difficulty.value);
 }
 </script>
 
@@ -27,6 +34,7 @@ async function onStartGame() {
                     min="1"
                     max="600"
                 />
+                <LabeledInput label="Difficulty" select v-model="difficulty" :options="difficultyOptions" />
                 <BaseButton @click="onStartGame" variant="primary">Start game</BaseButton>
             </UiPanel>
         </div>

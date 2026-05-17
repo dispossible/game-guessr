@@ -3,6 +3,14 @@ import { useGameStore } from "~/stores/game";
 import { GameStatus } from "#shared/types/GameState";
 
 const game = useGameStore();
+
+onMounted(() => {
+    if (game.roomId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("id", game.roomId);
+        window.history.replaceState(null, "", url.toString());
+    }
+});
 </script>
 
 <template>

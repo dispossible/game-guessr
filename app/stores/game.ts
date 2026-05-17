@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { GameState } from "#shared/types/GameState";
+import { type Difficulty, type GameState, GameStatus } from "#shared/types/GameState";
 import { type Message, MessageSchema, MessageType } from "#shared/types/Message";
 import { generateRandomId } from "#shared/utils/randomId";
 
@@ -156,13 +156,14 @@ export const useGameStore = defineStore("game", {
             roomIdCookie().value = null;
         },
 
-        startGame(roundCount: number, roundDuration: number) {
+        startGame(roundCount: number, roundDuration: number, difficulty: Difficulty) {
             if (!this.gameState) return;
             this.send({
                 type: MessageType.startRound,
                 roomId: this.gameState.id,
                 roundCount,
                 roundDuration,
+                difficulty,
             });
         },
 

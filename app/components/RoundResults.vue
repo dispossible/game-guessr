@@ -8,7 +8,7 @@ const game = useGameStore();
     <div class="roundResults">
         <h2>Round Results</h2>
         <!-- TODO -->
-        <BaseButton @click="game.startRound">Start Next Round</BaseButton>
+        <BaseButton @click="game.startRound" :disabled="!game.isHost">Start Next Round</BaseButton>
     </div>
 </template>
 

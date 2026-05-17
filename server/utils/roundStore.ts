@@ -1,5 +1,5 @@
 import type { Game } from "#shared/types/Game";
-import type { Round } from "#shared/types/GameState";
+import type { Difficulty, Round } from "#shared/types/GameState";
 import { GameStatus, RoundStatus } from "#shared/types/GameState";
 import { MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
@@ -63,11 +63,14 @@ function scheduleRoundTimers(roomId: string, round: Round) {
     addTimer(roomId, endTimer);
 }
 
-async function pickGameWithScreenshots(roomId: string): Promise<{ game: Game; screenshots: string[] } | null> {
+async function pickGameWithScreenshots(
+    roomId: string,
+    difficulty?: Difficulty,
+): Promise<{ game: Game; screenshots: string[] } | null> {
     const excluded = usedAppIds.get(roomId) ?? new Set<number>();
 
     for (let attempt = 0; attempt < 2; attempt++) {
-        const game = pickRandomGame(excluded);
+        const game = pickRandomGame(excluded, difficulty);
         if (!game) return null;
 
         const details = await getSteamGameDetails(game.appId);
@@ -86,6 +89,7 @@ async function pickGameWithScreenshots(roomId: string): Promise<{ game: Game; sc
 interface RoundSettings {
     roundCount?: number;
     roundDuration?: number;
+    difficulty?: Difficulty;
 }
 
 export async function startRound(peer: Peer, roomId: string, settings: RoundSettings = {}) {
@@ -115,10 +119,11 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
         // Apply host-provided settings before transitioning out of the lobby
         if (settings.roundCount !== undefined) gameState.roundCount = settings.roundCount;
         if (settings.roundDuration !== undefined) gameState.roundDuration = settings.roundDuration;
+        if (settings.difficulty !== undefined) gameState.difficulty = settings.difficulty;
         gameState.status = GameStatus.playing;
     }
 
-    const result = await pickGameWithScreenshots(roomId);
+    const result = await pickGameWithScreenshots(roomId, gameState.difficulty);
     if (!result) {
         console.error(`[roundStore] Could not find a game with screenshots for room ${roomId} — aborting round start.`);
         return;
@@ -140,7 +145,7 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
         status: RoundStatus.pending,
         startTime: now + ROUND_START_DELAY_MS,
         endTime: now + ROUND_START_DELAY_MS + gameState.roundDuration,
-        screenshots,
+        screenshots: screenshots.slice(0, 10), // We only show a maximum of 10 screenshots
         guesses: [],
     };
 

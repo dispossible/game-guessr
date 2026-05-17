@@ -1,5 +1,26 @@
 import z from "zod";
 
+export const DifficultySchema = z.enum(["everyEasy", "easy", "medium", "hard", "difficult", "brutal"]);
+export const Difficulty = DifficultySchema.enum;
+export type Difficulty = z.infer<typeof DifficultySchema>;
+
+export interface DifficultyConfig {
+    label: string;
+    /** Which segment (0-indexed) of the sorted game list to draw from. */
+    tier: number;
+    /** Total number of equal segments the list is divided into. */
+    totalTiers: number;
+}
+
+export const DIFFICULTY_OPTIONS: Record<Difficulty, DifficultyConfig> = {
+    everyEasy: { label: "Very easy", tier: 0, totalTiers: 6 },
+    easy: { label: "Easy", tier: 1, totalTiers: 6 },
+    medium: { label: "Medium", tier: 2, totalTiers: 6 },
+    hard: { label: "Hard", tier: 3, totalTiers: 6 },
+    difficult: { label: "Difficult", tier: 4, totalTiers: 6 },
+    brutal: { label: "Brutal", tier: 5, totalTiers: 6 },
+};
+
 export const PlayerSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -39,6 +60,7 @@ export const GameStateSchema = z.object({
     status: GameStatusSchema.default(GameStatus.lobby),
     roundCount: z.number().default(5),
     roundDuration: z.number().default(60000),
+    difficulty: DifficultySchema.default(Difficulty.easy),
     rounds: z.array(RoundSchema),
 });
 export type GameState = z.infer<typeof GameStateSchema>;

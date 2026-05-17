@@ -1,4 +1,5 @@
 import type { Game } from "#shared/types/Game";
+import { type Difficulty, DIFFICULTY_OPTIONS } from "#shared/types/GameState";
 
 let games: Game[] = [];
 let normalizedNames: string[] = [];
@@ -22,8 +23,19 @@ export function getGameCount(): number {
     return games.length;
 }
 
-export function pickRandomGame(excludeAppIds?: Set<number>): Game | undefined {
-    const pool = excludeAppIds ? games.filter((g) => !excludeAppIds.has(g.appId)) : games;
+export function pickRandomGame(excludeAppIds?: Set<number>, difficulty?: Difficulty): Game | undefined {
+    // Determine the slice of the sorted-by-popularity list based on difficulty.
+    // The full list is divided into `totalTiers` equal segments; `tier` selects which one.
+    let slice: Game[] = games;
+    if (difficulty) {
+        const { tier, totalTiers } = DIFFICULTY_OPTIONS[difficulty];
+        const segmentSize = Math.ceil(games.length / totalTiers);
+        const start = tier * segmentSize;
+        const end = Math.min(start + segmentSize, games.length);
+        slice = games.slice(start, end);
+    }
+
+    const pool = excludeAppIds ? slice.filter((g) => !excludeAppIds.has(g.appId)) : slice;
     if (pool.length === 0) return undefined;
     return pool[Math.floor(Math.random() * pool.length)];
 }
