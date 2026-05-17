@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { BaseInputProps } from "./BaseInput.vue";
 
-defineProps<
+const props = defineProps<
     BaseInputProps & {
         label: string;
         monospace?: boolean;

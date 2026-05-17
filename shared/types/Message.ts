@@ -43,6 +43,9 @@ export const LeftRoomMessageSchema = z.object({
     type: z.literal(MessageType.leftRoom),
     userId: z.string(),
     roomId: z.string(),
+    // The current host's id, which may have just changed if the leaving player
+    // was the host.
+    hostId: z.string(),
 });
 export type LeftRoomMessage = z.infer<typeof LeftRoomMessageSchema>;
 
@@ -62,6 +65,9 @@ export type FailedToJoinRoomMessage = z.infer<typeof FailedToJoinRoomMessageSche
 export const StartRoundMessageSchema = z.object({
     type: z.literal(MessageType.startRound),
     roomId: z.string(),
+    // Optional settings only applied when starting the very first round (lobby -> playing)
+    roundCount: z.number().int().min(1).max(30).optional(),
+    roundDuration: z.number().int().min(1000).max(600000).optional(),
 });
 export type StartRoundMessage = z.infer<typeof StartRoundMessageSchema>;
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useGameStore } from "~/stores/game";
+import { GameStatus } from "#shared/types/GameState";
 
 const game = useGameStore();
 </script>
@@ -9,6 +10,12 @@ const game = useGameStore();
         <p v-if="game.error" class="error">{{ game.error }}</p>
 
         <PlayerList />
+
+        <GameSettings v-if="game.isLobby && game.isHost" />
+        <GamePending v-else-if="game.isLobby" />
+        <GamePlaying v-else-if="game.isPlaying" />
+        <GameFinished v-else-if="game.isFinished" />
+        <div v-else>Unknown game status</div>
     </div>
 </template>
 

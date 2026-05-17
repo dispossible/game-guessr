@@ -1,6 +1,7 @@
 import z from "zod";
 import { MessageSchema, MessageType } from "#shared/types/Message";
 import { handlePeerClose, initNewRoom, joinRoom, leaveRoom } from "../utils/roomStore";
+import { startRound } from "../utils/roundStore";
 
 export default defineWebSocketHandler({
     open(peer) {
@@ -36,6 +37,10 @@ export default defineWebSocketHandler({
 
             case MessageType.leaveRoom:
                 leaveRoom(peer);
+                break;
+
+            case MessageType.startRound:
+                startRound(peer, data.roomId, { roundCount: data.roundCount, roundDuration: data.roundDuration });
                 break;
         }
     },

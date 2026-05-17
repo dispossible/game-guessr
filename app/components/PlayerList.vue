@@ -10,15 +10,23 @@ const game = useGameStore();
             Players <span>{{ game.players.length }}</span>
         </h3>
         <ul class="players">
-            <li v-for="player in game.players" :key="player.id" class="player" :data-you="player.id === game.clientId">
-                <span class="name">{{ player.name }}</span>
+            <li
+                v-for="player in game.players"
+                :key="player.id"
+                class="player"
+                :data-you="player.id === game.clientId"
+                :data-host="player.id === game.hostId"
+            >
+                <span class="name">
+                    {{ player.name }}
+                    <span v-if="player.id === game.hostId" class="hostBadge" title="Host">HOST</span>
+                </span>
                 <span class="score">{{ player.score }}</span>
             </li>
         </ul>
         <div class="error">{{ game.error }}</div>
         <div class="actions">
-            <BaseButton @click="game.leaveRoom" variant="danger">Leave</BaseButton>
-            <BaseButton @click="game.startGame" variant="primary">Start Game</BaseButton>
+            <BaseButton @click="game.leaveRoom" variant="ghost">Leave</BaseButton>
         </div>
     </div>
 </template>
@@ -65,17 +73,23 @@ const game = useGameStore();
     }
 }
 
+.name {
+    display: inline-flex;
+    align-items: center;
+    gap: 1ch;
+}
+
+.hostBadge {
+    font-size: 0.7em;
+    font-weight: 700;
+    padding: 0 0.5ch;
+    border: 1px solid var(--color-border);
+    border-radius: 2px;
+}
+
 .error {
     color: var(--color-danger);
     text-align: center;
     padding-block: 1lh;
-}
-
-.actions {
-    display: flex;
-    gap: 1ch;
-    & :last-child {
-        flex: 1;
-    }
 }
 </style>

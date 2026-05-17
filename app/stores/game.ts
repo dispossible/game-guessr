@@ -69,6 +69,12 @@ export const useGameStore = defineStore("game", {
         roomId: (state) => state.gameState?.id ?? null,
         players: (state) => state.gameState?.players ?? [],
         inRoom: (state) => state.gameState !== null,
+        hostId: (state) => state.gameState?.hostId ?? null,
+        isHost: (state) => state.gameState?.hostId === state.clientId,
+        isLobby: (state) => state.gameState?.status === GameStatus.lobby,
+        isPlaying: (state) => state.gameState?.status === GameStatus.playing,
+        isFinished: (state) => state.gameState?.status === GameStatus.finished,
+        currentRound: (state) => state.gameState?.rounds.at(-1) ?? null,
     },
 
     actions: {
@@ -150,6 +156,21 @@ export const useGameStore = defineStore("game", {
             roomIdCookie().value = null;
         },
 
+        startGame(roundCount: number, roundDuration: number) {
+            if (!this.gameState) return;
+            this.send({
+                type: MessageType.startRound,
+                roomId: this.gameState.id,
+                roundCount,
+                roundDuration,
+            });
+        },
+
+        startRound() {
+            if (!this.gameState) return;
+            this.send({ type: MessageType.startRound, roomId: this.gameState.id });
+        },
+
         async restoreSession() {
             const roomId = roomIdCookie().value;
             if (roomId && this.playerName) {
@@ -192,6 +213,7 @@ export const useGameStore = defineStore("game", {
                 case MessageType.leftRoom:
                     if (this.gameState && message.roomId === this.gameState.id) {
                         this.gameState.players = this.gameState.players.filter((p) => p.id !== message.userId);
+                        this.gameState.hostId = message.hostId;
                     }
                     break;
 

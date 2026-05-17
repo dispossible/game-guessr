@@ -1,5 +1,6 @@
 import type { GameState, Player } from "#shared/types/GameState";
-import { MessageType } from "#shared/types/Message";
+import { GameStatus } from "#shared/types/GameState";
+import { type Message, MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
 import { sendMessage, publishMessage } from "./message";
 import { generateRandomId } from "#shared/utils/randomId";
@@ -14,7 +15,15 @@ const ABANDONED_ROOM_GRACE_MS = 60_000;
 const rooms = new Map<string, GameState>(); // roomId -> gameState
 const clientsInRooms = new Map<string, string>(); // clientId -> roomId
 const peersToClients = new Map<string, string>(); // peer.id -> clientId
+const peers = new Map<string, Peer>(); // peer.id -> Peer
 const abandonedRoomTimers = new Map<string, NodeJS.Timeout>(); // roomId -> cleanup timer
+
+// Registered by roundStore to avoid a circular import. Called whenever a room
+// is hard-deleted so any pending round timers are cancelled.
+let onRoomDeleted: ((roomId: string) => void) | null = null;
+export function registerRoomDeletedCallback(cb: (roomId: string) => void) {
+    onRoomDeleted = cb;
+}
 
 export function generateRoomId(): string {
     // Keep generating until we find one not in the Map
@@ -55,6 +64,7 @@ function deleteRoom(roomId: string) {
             }
         }
     }
+    onRoomDeleted?.(roomId);
     rooms.delete(roomId);
     cancelAbandonedRoomCleanup(roomId);
 }
@@ -79,6 +89,7 @@ function scheduleAbandonedRoomCleanupIfEmpty(roomId: string) {
 
 function attachPeer(peer: Peer, clientId: string, roomId: string) {
     peersToClients.set(peer.id, clientId);
+    peers.set(peer.id, peer);
     clientsInRooms.set(clientId, roomId);
     peer.subscribe(roomId);
     // Someone is live in this room again — abort any pending cleanup.
@@ -97,12 +108,20 @@ function removeClientFromRoom(clientId: string, peer: Peer) {
 
     gameState.players = gameState.players.filter((player) => player.id !== clientId);
 
+    // If the host left, hand the role to whoever is next in the player list.
+    // If the room is now empty it will be torn down below, so no host needed.
+    const nextHost = gameState.players[0];
+    if (gameState.hostId === clientId && nextHost) {
+        gameState.hostId = nextHost.id;
+    }
+
     peer.unsubscribe(roomId);
 
     publishMessage(peer, roomId, {
         type: MessageType.leftRoom,
         userId: clientId,
         roomId,
+        hostId: gameState.hostId,
     });
 
     clientsInRooms.delete(clientId);
@@ -129,7 +148,12 @@ export function initNewRoom(peer: Peer, playerName: string, clientId: string) {
     const roomId = generateRoomId();
     const gameState: GameState = {
         id: roomId,
+        hostId: clientId,
         players: [player],
+        status: GameStatus.lobby,
+        roundCount: 5,
+        roundDuration: 60000,
+        rounds: [],
     };
     rooms.set(roomId, gameState);
     attachPeer(peer, clientId, roomId);
@@ -143,6 +167,21 @@ export function initNewRoom(peer: Peer, playerName: string, clientId: string) {
 
 export function getRoomGameState(roomId: string): GameState | undefined {
     return rooms.get(roomId);
+}
+
+export function getClientIdForPeer(peer: Peer): string | undefined {
+    return peersToClients.get(peer.id);
+}
+
+// Sends a message to every currently-connected peer in the room. Used by
+// timer-driven events (round transitions) where there is no incoming peer.
+export function broadcastToRoom(roomId: string, message: Message) {
+    const payload = JSON.stringify(message);
+    for (const [peerId, clientId] of peersToClients) {
+        if (clientsInRooms.get(clientId) !== roomId) continue;
+        const peer = peers.get(peerId);
+        peer?.send(payload);
+    }
 }
 
 // Called when a client explicitly leaves the room. Removes the player and
@@ -161,6 +200,7 @@ export function leaveRoom(peer: Peer) {
 export function handlePeerClose(peer: Peer) {
     const clientId = peersToClients.get(peer.id);
     peersToClients.delete(peer.id);
+    peers.delete(peer.id);
 
     if (!clientId) return;
     const roomId = clientsInRooms.get(clientId);
