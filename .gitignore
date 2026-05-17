@@ -22,3 +22,6 @@ logs
 .env
 .env.*
 !.env.example
+
+# Runtime Steam game detail cache (populated automatically at runtime)
+server/data/steamGames/

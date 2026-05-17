@@ -8,6 +8,7 @@ const game = useGameStore();
     <div class="roundGuesser">
         <h2>Round Guesser</h2>
         <!-- TODO -->
+        <img v-for="screenshot in game.currentRound?.screenshots" :key="screenshot" :src="screenshot" />
     </div>
 </template>
 

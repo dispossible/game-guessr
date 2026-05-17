@@ -20,6 +20,7 @@ export const RoundSchema = z.object({
     status: RoundStatusSchema,
     startTime: z.number(),
     endTime: z.number(),
+    screenshots: z.array(z.url()),
     guesses: z.array(
         z.object({
             playerId: z.string(),

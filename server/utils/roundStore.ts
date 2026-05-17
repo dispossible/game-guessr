@@ -1,15 +1,28 @@
+import type { Game } from "#shared/types/Game";
 import type { Round } from "#shared/types/GameState";
 import { GameStatus, RoundStatus } from "#shared/types/GameState";
 import { MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
 import { getRoomGameState, broadcastToRoom, getClientIdForPeer, registerRoomDeletedCallback } from "./roomStore";
+import { pickRandomGame } from "./gameStore";
+import { getSteamGameDetails, getScreenshots } from "./steamApi";
 
-registerRoomDeletedCallback((roomId) => clearRoomTimers(roomId));
+registerRoomDeletedCallback((roomId) => {
+    clearRoomTimers(roomId);
+    usedAppIds.delete(roomId);
+    activeGame.delete(roomId);
+});
 
 const ROUND_START_DELAY_MS = 5_000;
 
 // pending timers per room — cleared when the room is deleted
 const roomTimers = new Map<string, NodeJS.Timeout[]>();
+
+// Per-room set of all appIds ever picked — prevents repeats across rounds and matches
+const usedAppIds = new Map<string, Set<number>>();
+
+// Per-room current answer — replaced at each round start, used for guess validation
+const activeGame = new Map<string, Game>();
 
 function addTimer(roomId: string, timer: NodeJS.Timeout) {
     const list = roomTimers.get(roomId) ?? [];
@@ -22,6 +35,10 @@ export function clearRoomTimers(roomId: string) {
     if (!timers) return;
     for (const t of timers) clearTimeout(t);
     roomTimers.delete(roomId);
+}
+
+export function getActiveGame(roomId: string): Game | undefined {
+    return activeGame.get(roomId);
 }
 
 function scheduleRoundTimers(roomId: string, round: Round) {
@@ -46,12 +63,32 @@ function scheduleRoundTimers(roomId: string, round: Round) {
     addTimer(roomId, endTimer);
 }
 
+async function pickGameWithScreenshots(roomId: string): Promise<{ game: Game; screenshots: string[] } | null> {
+    const excluded = usedAppIds.get(roomId) ?? new Set<number>();
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const game = pickRandomGame(excluded);
+        if (!game) return null;
+
+        const details = await getSteamGameDetails(game.appId);
+        if (!details) {
+            // Temporarily exclude this game for the retry so we don't re-try the same appId
+            excluded.add(game.appId);
+            continue;
+        }
+
+        return { game, screenshots: getScreenshots(details) };
+    }
+
+    return null;
+}
+
 interface RoundSettings {
     roundCount?: number;
     roundDuration?: number;
 }
 
-export function startRound(peer: Peer, roomId: string, settings: RoundSettings = {}) {
+export async function startRound(peer: Peer, roomId: string, settings: RoundSettings = {}) {
     const clientId = getClientIdForPeer(peer);
     if (!clientId) return;
 
@@ -81,12 +118,29 @@ export function startRound(peer: Peer, roomId: string, settings: RoundSettings =
         gameState.status = GameStatus.playing;
     }
 
+    const result = await pickGameWithScreenshots(roomId);
+    if (!result) {
+        console.error(`[roundStore] Could not find a game with screenshots for room ${roomId} — aborting round start.`);
+        return;
+    }
+
+    const { game, screenshots } = result;
+
+    // Record this game as used for this room
+    const used = usedAppIds.get(roomId) ?? new Set<number>();
+    used.add(game.appId);
+    usedAppIds.set(roomId, used);
+
+    // Track as the active answer for this room
+    activeGame.set(roomId, game);
+
     const now = Date.now();
     const round: Round = {
         number: gameState.rounds.length + 1,
         status: RoundStatus.pending,
         startTime: now + ROUND_START_DELAY_MS,
         endTime: now + ROUND_START_DELAY_MS + gameState.roundDuration,
+        screenshots,
         guesses: [],
     };
 

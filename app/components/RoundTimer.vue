@@ -23,6 +23,21 @@ onMounted(() => {
 onUnmounted(() => {
     if (interval !== null) clearInterval(interval);
 });
+
+function preloadScreenshots(urls: string[]) {
+    for (const url of urls) {
+        const img = new Image();
+        img.src = url;
+    }
+}
+
+watch(
+    () => game.currentRound?.screenshots,
+    (urls) => {
+        if (urls && urls.length > 0) preloadScreenshots(urls);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>

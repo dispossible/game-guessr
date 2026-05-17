@@ -22,6 +22,12 @@ export function getGameCount(): number {
     return games.length;
 }
 
+export function pickRandomGame(excludeAppIds?: Set<number>): Game | undefined {
+    const pool = excludeAppIds ? games.filter((g) => !excludeAppIds.has(g.appId)) : games;
+    if (pool.length === 0) return undefined;
+    return pool[Math.floor(Math.random() * pool.length)];
+}
+
 export function searchGames(q: string, limit = 10): Game[] {
     const needle = normalize(q);
     if (!needle) return [];

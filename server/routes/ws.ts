@@ -40,7 +40,9 @@ export default defineWebSocketHandler({
                 break;
 
             case MessageType.startRound:
-                startRound(peer, data.roomId, { roundCount: data.roundCount, roundDuration: data.roundDuration });
+                startRound(peer, data.roomId, { roundCount: data.roundCount, roundDuration: data.roundDuration }).catch(
+                    (err) => console.error("[ws] startRound failed:", err),
+                );
                 break;
         }
     },
