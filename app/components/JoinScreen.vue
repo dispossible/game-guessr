@@ -56,15 +56,19 @@ async function onJoin() {
 
             <p v-if="game.error" class="error">{{ game.error }}</p>
         </UiPanel>
+        <div></div>
     </div>
 </template>
 
 <style scoped>
 .joinScreen {
-    min-height: 80vh;
+    min-height: 100%;
     display: grid;
     align-items: center;
     width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+    flex: 1;
 }
 
 .actions {
