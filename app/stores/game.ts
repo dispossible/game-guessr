@@ -85,6 +85,8 @@ export const useGameStore = defineStore("game", {
         isPlaying: (state) => state.gameState?.status === GameStatus.playing,
         isFinished: (state) => state.gameState?.status === GameStatus.finished,
         currentRound: (state) => state.gameState?.rounds.at(-1) ?? null,
+        isFinalRound: (state) =>
+            state.gameState !== null && state.gameState.rounds.length === state.gameState.roundCount,
     },
 
     actions: {
@@ -180,6 +182,11 @@ export const useGameStore = defineStore("game", {
         startRound() {
             if (!this.gameState) return;
             this.send({ type: MessageType.startRound, roomId: this.gameState.id });
+        },
+
+        endGame() {
+            if (!this.gameState) return;
+            this.send({ type: MessageType.endGame, roomId: this.gameState.id });
         },
 
         returnToLobby() {

@@ -55,10 +55,6 @@ function completeRound(roomId: string, gameState: GameState, round: Round) {
         round.headerImage = details.header_image;
     }
 
-    if (gameState.rounds.length === gameState.roundCount) {
-        gameState.status = GameStatus.finished;
-    }
-
     // Cancel all pending round timers (start + end) so the end timer doesn't fire again
     clearRoomTimers(roomId);
 
@@ -172,6 +168,30 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
     gameState.rounds.push(round);
     scheduleRoundTimers(roomId, round);
 
+    broadcastMessage(peer, roomId, { type: MessageType.gameState, gameState });
+}
+
+export function endGame(peer: Peer, roomId: string) {
+    const clientId = getClientIdForPeer(peer);
+    if (!clientId) return;
+
+    const gameState = getRoomGameState(roomId);
+    if (!gameState) return;
+
+    // Only the host can end the game.
+    if (gameState.hostId !== clientId) return;
+
+    // Only meaningful while a game is in progress.
+    if (gameState.status !== GameStatus.playing) return;
+
+    // The final round must have been played and completed; otherwise the host
+    // should be starting the next round, not ending the game.
+    const allRoundsPlayed = gameState.rounds.length === gameState.roundCount;
+    const lastRound = gameState.rounds.at(-1);
+    const lastRoundCompleted = lastRound?.status === RoundStatus.completed;
+    if (!allRoundsPlayed || !lastRoundCompleted) return;
+
+    gameState.status = GameStatus.finished;
     broadcastMessage(peer, roomId, { type: MessageType.gameState, gameState });
 }
 

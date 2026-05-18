@@ -33,8 +33,14 @@ const correctGuessers = computed(() => {
             />
         </div>
 
-        <BaseButton @click="game.startRound" v-if="game.isHost">Start Next Round</BaseButton>
-        <p class="waitingForHost" v-else>Waiting for host to start next round&hellip;</p>
+        <template v-if="game.isFinalRound">
+            <BaseButton @click="game.endGame" v-if="game.isHost">Show Final Scores</BaseButton>
+            <p class="waitingForHost" v-else>Waiting for host to show final scores&hellip;</p>
+        </template>
+        <template v-else>
+            <BaseButton @click="game.startRound" v-if="game.isHost">Start Next Round</BaseButton>
+            <p class="waitingForHost" v-else>Waiting for host to start next round&hellip;</p>
+        </template>
     </div>
 </template>
 
