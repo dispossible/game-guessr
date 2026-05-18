@@ -154,6 +154,7 @@ export function initNewRoom(peer: Peer, playerName: string, clientId: string) {
         roundCount: 5,
         roundDuration: 60000,
         rounds: [],
+        difficulty: Difficulty.easy,
     };
     rooms.set(roomId, gameState);
     attachPeer(peer, clientId, roomId);

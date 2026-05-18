@@ -102,7 +102,11 @@
                 // col 2: name — plain HTML string, grab the inner text of the <a class="b"> link
                 const nameHtml = String(row[2] ?? "");
                 const nameMatch = nameHtml.match(/class="b"[^>]*>([^<]+)<\/a>/);
-                const name = nameMatch ? nameMatch[1].trim() : nameHtml.replace(/<[^>]+>/g, "").trim();
+                const rawName = nameMatch ? nameMatch[1].trim() : nameHtml.replace(/<[^>]+>/g, "").trim();
+                // Decode HTML entities (e.g. &amp; → &) that SteamDB includes in the HTML
+                const txt = document.createElement("textarea");
+                txt.innerHTML = rawName;
+                const name = txt.value;
                 if (!name) continue;
 
                 // col 5: rating — @data-sort is "93.54" (percentage without % symbol)

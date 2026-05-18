@@ -182,6 +182,11 @@ export const useGameStore = defineStore("game", {
             this.send({ type: MessageType.startRound, roomId: this.gameState.id });
         },
 
+        returnToLobby() {
+            if (!this.gameState) return;
+            this.send({ type: MessageType.returnToLobby, roomId: this.gameState.id });
+        },
+
         makeGuess(appId: number) {
             if (!this.gameState) return;
             this.send({ type: MessageType.makeGuess, roomId: this.gameState.id, appId });

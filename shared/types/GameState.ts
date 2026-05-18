@@ -1,6 +1,6 @@
 import z from "zod";
 
-export const DifficultySchema = z.enum(["everyEasy", "easy", "medium", "hard", "difficult", "brutal"]);
+export const DifficultySchema = z.enum(["veryEasy", "easy", "medium", "hard", "difficult", "brutal"]);
 export const Difficulty = DifficultySchema.enum;
 export type Difficulty = z.infer<typeof DifficultySchema>;
 
@@ -13,7 +13,7 @@ export interface DifficultyConfig {
 }
 
 export const DIFFICULTY_OPTIONS: Record<Difficulty, DifficultyConfig> = {
-    everyEasy: { label: "Very easy", tier: 0, totalTiers: 4 },
+    veryEasy: { label: "Very easy", tier: 0, totalTiers: 4 },
     easy: { label: "Easy", tier: 0, totalTiers: 3 },
     medium: { label: "Medium", tier: 1, totalTiers: 3 },
     hard: { label: "Hard", tier: 2, totalTiers: 3 },

@@ -9,6 +9,7 @@ export const MessageTypeSchema = z.enum([
     "createRoom",
     "failedToJoinRoom",
     "startRound",
+    "returnToLobby",
     "makeGuess",
     "guessResult",
     "gameState",
@@ -73,6 +74,12 @@ export const StartRoundMessageSchema = z.object({
 });
 export type StartRoundMessage = z.infer<typeof StartRoundMessageSchema>;
 
+export const ReturnToLobbyMessageSchema = z.object({
+    type: z.literal(MessageType.returnToLobby),
+    roomId: z.string(),
+});
+export type ReturnToLobbyMessage = z.infer<typeof ReturnToLobbyMessageSchema>;
+
 export const GameStateMessageSchema = z.object({
     type: z.literal(MessageType.gameState),
     gameState: GameStateSchema,
@@ -103,6 +110,7 @@ export const MessageSchema = z.discriminatedUnion("type", [
     CreateRoomMessageSchema,
 
     StartRoundMessageSchema,
+    ReturnToLobbyMessageSchema,
     MakeGuessMessageSchema,
     GuessResultMessageSchema,
     GameStateMessageSchema,

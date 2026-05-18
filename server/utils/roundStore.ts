@@ -3,7 +3,7 @@ import { GameStatus, RoundStatus } from "#shared/types/GameState";
 import { MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
 import { getRoomGameState, broadcastToRoom, getClientIdForPeer, registerRoomDeletedCallback } from "./roomStore";
-import { sendMessage } from "./message";
+import { broadcastMessage, sendMessage } from "./message";
 import { pickRandomGame } from "./gameStore";
 import { getSteamGameDetails, getScreenshots, type SteamGameDetails } from "./steamApi";
 
@@ -172,7 +172,36 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
     gameState.rounds.push(round);
     scheduleRoundTimers(roomId, round);
 
-    broadcastToRoom(roomId, { type: MessageType.gameState, gameState });
+    broadcastMessage(peer, roomId, { type: MessageType.gameState, gameState });
+}
+
+export function returnToLobby(peer: Peer, roomId: string) {
+    const clientId = getClientIdForPeer(peer);
+    if (!clientId) return;
+
+    const gameState = getRoomGameState(roomId);
+    if (!gameState) return;
+
+    // Only the host can reset the room back to the lobby.
+    if (gameState.hostId !== clientId) return;
+
+    // Only meaningful once the game has actually finished — guards against a
+    // stale "Play Again" click racing with an in-progress game.
+    if (gameState.status !== GameStatus.finished) return;
+
+    // Cancel any lingering timers and drop per-room round state so the next
+    // game starts from a clean slate.
+    // notably not clearing the seen appIds so we don't repeat games.
+    clearRoomTimers(roomId);
+    activeGame.delete(roomId);
+
+    gameState.status = GameStatus.lobby;
+    gameState.rounds = [];
+    for (const player of gameState.players) {
+        player.score = 0;
+    }
+
+    broadcastMessage(peer, roomId, { type: MessageType.gameState, gameState });
 }
 
 export function submitGuess(peer: Peer, roomId: string, appId: number) {
@@ -205,11 +234,14 @@ export function submitGuess(peer: Peer, roomId: string, appId: number) {
 
     sendMessage(peer, { type: MessageType.guessResult, correct, score, appId });
 
-    if (correct) {
-        const correctPlayerIds = new Set(round.guesses.filter((g) => g.correct).map((g) => g.playerId));
-        const allGuessed = gameState.players.every((p) => correctPlayerIds.has(p.id));
-        if (allGuessed) {
-            completeRound(roomId, gameState, round);
-        }
+    const correctPlayerIds = new Set(round.guesses.filter((g) => g.correct).map((g) => g.playerId));
+    const allCorrect = gameState.players.every((p) => correctPlayerIds.has(p.id));
+
+    if (correct && allCorrect) {
+        // completeRound broadcasts the final state with round status + game name revealed
+        completeRound(roomId, gameState, round);
+    } else {
+        // Broadcast after every guess so other players see score updates in real-time
+        broadcastToRoom(roomId, { type: MessageType.gameState, gameState });
     }
 }

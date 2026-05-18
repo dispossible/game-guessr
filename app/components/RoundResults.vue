@@ -4,6 +4,17 @@ import { useGameStore } from "~/stores/game";
 const game = useGameStore();
 
 const round = computed(() => game.currentRound);
+
+const correctGuessers = computed(() => {
+    if (!round.value) return [];
+    return round.value.guesses
+        .filter((g) => g.correct)
+        .sort((a, b) => b.score - a.score)
+        .map((g) => ({
+            name: game.players.find((p) => p.id === g.playerId)?.name ?? "Unknown",
+            score: g.score,
+        }));
+});
 </script>
 
 <template>
@@ -11,22 +22,31 @@ const round = computed(() => game.currentRound);
         <div class="reveal">
             <img v-if="round.headerImage" :src="round.headerImage" :alt="round.gameName" class="headerImage" />
             <h2 class="gameName">{{ round.gameName }}</h2>
-
-            <BaseButton @click="game.startRound" v-if="game.isHost">Start Next Round</BaseButton>
-            <p class="waitingForHost" v-else>Waiting for host to start next round&hellip;</p>
         </div>
-        <div></div>
+
+        <div class="scoreboard">
+            <h3 class="scoreboardTitle">Correct guesses</h3>
+            <PlayerScoreboard
+                :entries="correctGuessers"
+                score-prefix="+"
+                empty-message="Nobody guessed correctly this round"
+            />
+        </div>
+
+        <BaseButton @click="game.startRound" v-if="game.isHost">Start Next Round</BaseButton>
+        <p class="waitingForHost" v-else>Waiting for host to start next round&hellip;</p>
     </div>
 </template>
 
 <style scoped>
 .roundResults {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: space-around;
-    gap: 1.5rem;
+    gap: 2lh;
+    align-self: center;
+    margin: auto;
 }
 
 .reveal {
@@ -54,6 +74,23 @@ const round = computed(() => game.currentRound);
     font-size: 2rem;
     font-weight: 700;
     text-align: center;
+    margin: 0;
+}
+
+.scoreboard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.scoreboardTitle {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
     margin: 0;
 }
 

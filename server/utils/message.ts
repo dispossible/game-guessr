@@ -10,3 +10,8 @@ export function sendMessage(peer: Peer, message: Message) {
 export function publishMessage(peer: Peer, channel: string, message: Message) {
     peer.publish(channel, JSON.stringify(message));
 }
+
+export function broadcastMessage(peer: Peer, roomId: string, message: Message) {
+    sendMessage(peer, message);
+    publishMessage(peer, roomId, message);
+}
