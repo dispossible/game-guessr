@@ -90,6 +90,9 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
     object-fit: cover;
     opacity: 1;
     transform: translateY(0);
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
 }
 
 .thumbnailGrid {
@@ -104,6 +107,9 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
 .thumbnail {
     aspect-ratio: 16 / 9;
     width: 100%;
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
 }
 
 /* Main screenshot crossfade */

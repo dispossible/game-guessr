@@ -13,11 +13,11 @@ export interface DifficultyConfig {
 }
 
 export const DIFFICULTY_OPTIONS: Record<Difficulty, DifficultyConfig> = {
-    everyEasy: { label: "Very easy", tier: 0, totalTiers: 6 },
-    easy: { label: "Easy", tier: 1, totalTiers: 6 },
-    medium: { label: "Medium", tier: 2, totalTiers: 6 },
-    hard: { label: "Hard", tier: 3, totalTiers: 6 },
-    difficult: { label: "Difficult", tier: 4, totalTiers: 6 },
+    everyEasy: { label: "Very easy", tier: 0, totalTiers: 4 },
+    easy: { label: "Easy", tier: 0, totalTiers: 3 },
+    medium: { label: "Medium", tier: 1, totalTiers: 3 },
+    hard: { label: "Hard", tier: 2, totalTiers: 3 },
+    difficult: { label: "Difficult", tier: 3, totalTiers: 4 },
     brutal: { label: "Brutal", tier: 5, totalTiers: 6 },
 };
 
@@ -50,6 +50,10 @@ export const RoundSchema = z.object({
             correct: z.boolean(),
         }),
     ),
+    // Populated by the server only once the round is completed, so the answer
+    // isn't exposed to clients while the round is still in progress.
+    gameName: z.string().optional(),
+    headerImage: z.string().optional(),
 });
 export type Round = z.infer<typeof RoundSchema>;
 

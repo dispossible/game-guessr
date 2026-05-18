@@ -1,11 +1,10 @@
-import type { Game } from "#shared/types/Game";
 import type { Difficulty, Round } from "#shared/types/GameState";
 import { GameStatus, RoundStatus } from "#shared/types/GameState";
 import { MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
 import { getRoomGameState, broadcastToRoom, getClientIdForPeer, registerRoomDeletedCallback } from "./roomStore";
 import { pickRandomGame } from "./gameStore";
-import { getSteamGameDetails, getScreenshots } from "./steamApi";
+import { getSteamGameDetails, getScreenshots, type SteamGameDetails } from "./steamApi";
 
 registerRoomDeletedCallback((roomId) => {
     clearRoomTimers(roomId);
@@ -21,8 +20,8 @@ const roomTimers = new Map<string, NodeJS.Timeout[]>();
 // Per-room set of all appIds ever picked — prevents repeats across rounds and matches
 const usedAppIds = new Map<string, Set<number>>();
 
-// Per-room current answer — replaced at each round start, used for guess validation
-const activeGame = new Map<string, Game>();
+// Per-room Steam details for the current round's game — used for guess validation and reveal
+const activeGame = new Map<string, SteamGameDetails>();
 
 function addTimer(roomId: string, timer: NodeJS.Timeout) {
     const list = roomTimers.get(roomId) ?? [];
@@ -37,7 +36,7 @@ export function clearRoomTimers(roomId: string) {
     roomTimers.delete(roomId);
 }
 
-export function getActiveGame(roomId: string): Game | undefined {
+export function getActiveGame(roomId: string): SteamGameDetails | undefined {
     return activeGame.get(roomId);
 }
 
@@ -54,6 +53,11 @@ function scheduleRoundTimers(roomId: string, round: Round) {
 
     const endTimer = setTimeout(() => {
         round.status = RoundStatus.completed;
+        const details = activeGame.get(roomId);
+        if (details) {
+            round.gameName = details.name;
+            round.headerImage = details.header_image;
+        }
         if (gameState.rounds.length === gameState.roundCount) {
             gameState.status = GameStatus.finished;
         }
@@ -63,10 +67,10 @@ function scheduleRoundTimers(roomId: string, round: Round) {
     addTimer(roomId, endTimer);
 }
 
-async function pickGameWithScreenshots(
+async function pickGame(
     roomId: string,
     difficulty?: Difficulty,
-): Promise<{ game: Game; screenshots: string[] } | null> {
+): Promise<{ appId: number; details: SteamGameDetails } | null> {
     const excluded = usedAppIds.get(roomId) ?? new Set<number>();
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -80,7 +84,7 @@ async function pickGameWithScreenshots(
             continue;
         }
 
-        return { game, screenshots: getScreenshots(details) };
+        return { appId: game.appId, details };
     }
 
     return null;
@@ -123,21 +127,21 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
         gameState.status = GameStatus.playing;
     }
 
-    const result = await pickGameWithScreenshots(roomId, gameState.difficulty);
+    const result = await pickGame(roomId, gameState.difficulty);
     if (!result) {
         console.error(`[roundStore] Could not find a game with screenshots for room ${roomId} — aborting round start.`);
         return;
     }
 
-    const { game, screenshots } = result;
+    const { appId, details } = result;
 
     // Record this game as used for this room
     const used = usedAppIds.get(roomId) ?? new Set<number>();
-    used.add(game.appId);
+    used.add(appId);
     usedAppIds.set(roomId, used);
 
-    // Track as the active answer for this room
-    activeGame.set(roomId, game);
+    // Track Steam details as the active answer for this room
+    activeGame.set(roomId, details);
 
     const now = Date.now();
     const round: Round = {
@@ -145,7 +149,7 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
         status: RoundStatus.pending,
         startTime: now + ROUND_START_DELAY_MS,
         endTime: now + ROUND_START_DELAY_MS + gameState.roundDuration,
-        screenshots: screenshots.slice(0, 10), // We only show a maximum of 10 screenshots
+        screenshots: getScreenshots(details).slice(0, 10), // We only show a maximum of 10 screenshots
         guesses: [],
     };
 
