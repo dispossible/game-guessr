@@ -10,8 +10,6 @@ const leaderboard = computed(() =>
 
 <template>
     <div class="gameFinished">
-        <h2 class="title">Game Over</h2>
-
         <div class="scoreboard">
             <h3 class="scoreboardTitle">Final scores</h3>
             <PlayerScoreboard :entries="leaderboard" empty-message="No players to show" />
@@ -33,12 +31,6 @@ const leaderboard = computed(() =>
     padding: 2ch;
 }
 
-.title {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0;
-}
-
 .scoreboard {
     display: flex;
     flex-direction: column;
@@ -48,11 +40,10 @@ const leaderboard = computed(() =>
 }
 
 .scoreboardTitle {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    opacity: 0.6;
     margin: 0;
 }
 

@@ -7,16 +7,17 @@ import { generateRandomId } from "#shared/utils/randomId";
 
 const ID_SIZE = 6;
 
-// How long an abandoned room (all peers disconnected) sticks around so players
-// who closed their tab / refreshed can still reconnect with the same clientId
-// and keep their score.
-const ABANDONED_ROOM_GRACE_MS = 60_000;
+// How long a disconnected client is kept on the room roster so a refresh or
+// brief network blip can reattach with the same clientId and keep their
+// score. Once this elapses the player is removed from the room, and if they
+// were the last one the room itself is torn down.
+const DISCONNECT_TIMEOUT_MS = 60_000;
 
 const rooms = new Map<string, GameState>(); // roomId -> gameState
 const clientsInRooms = new Map<string, string>(); // clientId -> roomId
 const peersToClients = new Map<string, string>(); // peer.id -> clientId
 const peers = new Map<string, Peer>(); // peer.id -> Peer
-const abandonedRoomTimers = new Map<string, NodeJS.Timeout>(); // roomId -> cleanup timer
+const disconnectedClientTimers = new Map<string, NodeJS.Timeout>(); // clientId -> removal timer
 
 // Registered by roundStore to avoid a circular import. Called whenever a room
 // is hard-deleted so any pending round timers are cancelled.
@@ -35,30 +36,44 @@ export function generateRoomId(): string {
     }
 }
 
-function countConnectedPlayersInRoom(roomId: string): number {
-    const gameState = rooms.get(roomId);
-    if (!gameState) return 0;
-    const onlineClientIds = new Set(peersToClients.values());
-    let count = 0;
-    for (const player of gameState.players) {
-        if (onlineClientIds.has(player.id)) count++;
+function isClientConnected(clientId: string): boolean {
+    for (const cid of peersToClients.values()) {
+        if (cid === clientId) return true;
     }
-    return count;
+    return false;
 }
 
-function cancelAbandonedRoomCleanup(roomId: string) {
-    const timer = abandonedRoomTimers.get(roomId);
+function cancelDisconnectTimeout(clientId: string) {
+    const timer = disconnectedClientTimers.get(clientId);
     if (!timer) return;
     clearTimeout(timer);
-    abandonedRoomTimers.delete(roomId);
+    disconnectedClientTimers.delete(clientId);
+}
+
+function scheduleDisconnectTimeout(clientId: string) {
+    cancelDisconnectTimeout(clientId);
+
+    const timer = setTimeout(() => {
+        disconnectedClientTimers.delete(clientId);
+        // Re-check on fire in case the client reconnected just before the timer ran.
+        if (isClientConnected(clientId)) return;
+        const roomId = clientsInRooms.get(clientId);
+        if (!roomId) return;
+        console.log(`[rooms] Disconnect timeout for ${clientId} in room ${roomId}`);
+        removeDisconnectedClient(clientId);
+    }, DISCONNECT_TIMEOUT_MS);
+    // Don't keep the Node process alive solely because of pending removals.
+    timer.unref?.();
+    disconnectedClientTimers.set(clientId, timer);
 }
 
 function deleteRoom(roomId: string) {
     const gameState = rooms.get(roomId);
     if (gameState) {
-        // Drop any lingering clientId -> roomId mappings for players in this room
-        // (they are all offline at this point; their peers were already cleared).
+        // Drop any lingering clientId -> roomId mappings and pending removal
+        // timers for players in this room.
         for (const player of gameState.players) {
+            cancelDisconnectTimeout(player.id);
             if (clientsInRooms.get(player.id) === roomId) {
                 clientsInRooms.delete(player.id);
             }
@@ -66,37 +81,25 @@ function deleteRoom(roomId: string) {
     }
     onRoomDeleted?.(roomId);
     rooms.delete(roomId);
-    cancelAbandonedRoomCleanup(roomId);
 }
 
-function scheduleAbandonedRoomCleanupIfEmpty(roomId: string) {
-    if (!rooms.has(roomId)) return;
-    if (abandonedRoomTimers.has(roomId)) return;
-    if (countConnectedPlayersInRoom(roomId) > 0) return;
+// Drop a player from the room's roster and, if they were the host, hand the
+// role to whoever's next in the list.
+function detachPlayer(gameState: GameState, clientId: string) {
+    gameState.players = gameState.players.filter((player) => player.id !== clientId);
 
-    const timer = setTimeout(() => {
-        abandonedRoomTimers.delete(roomId);
-        // Re-check on fire in case someone reconnected just before the timer ran.
-        if (countConnectedPlayersInRoom(roomId) > 0) return;
-        if (!rooms.has(roomId)) return;
-        console.log(`[rooms] Cleaning up abandoned room: ${roomId}`);
-        deleteRoom(roomId);
-    }, ABANDONED_ROOM_GRACE_MS);
-    // Don't keep the Node process alive solely because of pending room cleanups.
-    timer.unref?.();
-    abandonedRoomTimers.set(roomId, timer);
+    // If the host left, hand the role to whoever is next in the player list.
+    // If the room is now empty it will be torn down by the caller, so no host needed.
+    const nextHost = gameState.players[0];
+    if (gameState.hostId === clientId && nextHost) {
+        gameState.hostId = nextHost.id;
+    }
 }
 
-function attachPeer(peer: Peer, clientId: string, roomId: string) {
-    peersToClients.set(peer.id, clientId);
-    peers.set(peer.id, peer);
-    clientsInRooms.set(clientId, roomId);
-    peer.subscribe(roomId);
-    // Someone is live in this room again — abort any pending cleanup.
-    cancelAbandonedRoomCleanup(roomId);
-}
-
-function removeClientFromRoom(clientId: string, peer: Peer) {
+// Called when a disconnected client's grace timer fires without them having
+// reconnected. Removes the player and tears down the room if they were the
+// last one in it.
+function removeDisconnectedClient(clientId: string) {
     const roomId = clientsInRooms.get(clientId);
     if (!roomId) return;
 
@@ -106,14 +109,44 @@ function removeClientFromRoom(clientId: string, peer: Peer) {
         return;
     }
 
-    gameState.players = gameState.players.filter((player) => player.id !== clientId);
+    detachPlayer(gameState, clientId);
+    clientsInRooms.delete(clientId);
 
-    // If the host left, hand the role to whoever is next in the player list.
-    // If the room is now empty it will be torn down below, so no host needed.
-    const nextHost = gameState.players[0];
-    if (gameState.hostId === clientId && nextHost) {
-        gameState.hostId = nextHost.id;
+    if (gameState.players.length === 0) {
+        deleteRoom(roomId);
+        return;
     }
+
+    broadcastToRoom(roomId, {
+        type: MessageType.leftRoom,
+        userId: clientId,
+        roomId,
+        hostId: gameState.hostId,
+    });
+}
+
+function attachPeer(peer: Peer, clientId: string, roomId: string) {
+    peersToClients.set(peer.id, clientId);
+    peers.set(peer.id, peer);
+    clientsInRooms.set(clientId, roomId);
+    peer.subscribe(roomId);
+    // They're back — abort any pending disconnect-timeout removal.
+    cancelDisconnectTimeout(clientId);
+}
+
+function removeClientFromRoom(clientId: string, peer: Peer) {
+    cancelDisconnectTimeout(clientId);
+
+    const roomId = clientsInRooms.get(clientId);
+    if (!roomId) return;
+
+    const gameState = getRoomGameState(roomId);
+    if (!gameState) {
+        clientsInRooms.delete(clientId);
+        return;
+    }
+
+    detachPlayer(gameState, clientId);
 
     peer.unsubscribe(roomId);
 
@@ -128,10 +161,6 @@ function removeClientFromRoom(clientId: string, peer: Peer) {
 
     if (gameState.players.length === 0) {
         deleteRoom(roomId);
-    } else {
-        // Players remain on the roster, but if none of them currently have a
-        // live peer, start the abandoned-room cleanup grace timer.
-        scheduleAbandonedRoomCleanupIfEmpty(roomId);
     }
 }
 
@@ -195,19 +224,21 @@ export function leaveRoom(peer: Peer) {
 
 // Called when a peer's websocket closes (refresh, tab close, network blip).
 // We deliberately keep the player in the room so they can rejoin with the
-// same clientId and keep their score. We just detach the peer mapping — and
-// if that leaves the room with nobody live, start the abandoned-room grace
-// timer so an entirely empty room eventually gets cleaned up.
+// same clientId and keep their score, but we start a per-client grace timer
+// — if they don't reconnect before it fires, they're removed from the room
+// (and the room itself is torn down when the last player is removed).
 export function handlePeerClose(peer: Peer) {
     const clientId = peersToClients.get(peer.id);
     peersToClients.delete(peer.id);
     peers.delete(peer.id);
 
     if (!clientId) return;
-    const roomId = clientsInRooms.get(clientId);
-    if (!roomId) return;
+    if (!clientsInRooms.has(clientId)) return;
+    // If this client still has another peer connected (e.g. a second tab),
+    // they're not really disconnected — leave them alone.
+    if (isClientConnected(clientId)) return;
 
-    scheduleAbandonedRoomCleanupIfEmpty(roomId);
+    scheduleDisconnectTimeout(clientId);
 }
 
 export function joinRoom(peer: Peer, roomId: string, playerName: string, clientId: string) {

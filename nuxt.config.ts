@@ -20,5 +20,8 @@ export default defineNuxtConfig({
                 },
             },
         ],
+        server: {
+            allowedHosts: ["shiniest-redder-simone.ngrok-free.dev"],
+        },
     },
 });
