@@ -22,7 +22,6 @@ const round = computed(() => game.currentRound);
 <style scoped>
 .roundResults {
     flex: 1;
-    padding: 2ch;
     display: flex;
     flex-direction: column;
     align-items: center;

@@ -3,6 +3,14 @@ import { type Difficulty, type GameState, GameStatus } from "#shared/types/GameS
 import { type Message, MessageSchema, MessageType } from "#shared/types/Message";
 import { generateRandomId } from "#shared/utils/randomId";
 
+interface GuessResult {
+    correct: boolean;
+    score: number;
+    appId: number;
+    roundNumber: number;
+    at: number;
+}
+
 type ConnectionStatus = "idle" | "connecting" | "open" | "closed";
 
 interface GameStoreState {
@@ -12,6 +20,7 @@ interface GameStoreState {
     playerName: string | null;
     clientId: string;
     error: string | null;
+    lastGuessResult: GuessResult | null;
 }
 
 const CLIENT_NAME_KEY = "game-guessr-client-name";
@@ -62,6 +71,7 @@ export const useGameStore = defineStore("game", {
         playerName: clientNameCookie().value ?? null,
         clientId: ensureClientId(),
         error: null,
+        lastGuessResult: null,
     }),
 
     getters: {
@@ -172,6 +182,11 @@ export const useGameStore = defineStore("game", {
             this.send({ type: MessageType.startRound, roomId: this.gameState.id });
         },
 
+        makeGuess(appId: number) {
+            if (!this.gameState) return;
+            this.send({ type: MessageType.makeGuess, roomId: this.gameState.id, appId });
+        },
+
         async restoreSession() {
             const roomId = roomIdCookie().value;
             if (roomId && this.playerName) {
@@ -202,6 +217,16 @@ export const useGameStore = defineStore("game", {
                     this.gameState = message.gameState;
                     roomIdCookie().value = message.gameState.id;
                     this.error = null;
+                    break;
+
+                case MessageType.guessResult:
+                    this.lastGuessResult = {
+                        correct: message.correct,
+                        score: message.score,
+                        appId: message.appId,
+                        roundNumber: this.currentRound?.number ?? 0,
+                        at: Date.now(),
+                    };
                     break;
 
                 case MessageType.joinedRoom:

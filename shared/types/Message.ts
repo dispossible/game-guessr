@@ -10,6 +10,7 @@ export const MessageTypeSchema = z.enum([
     "failedToJoinRoom",
     "startRound",
     "makeGuess",
+    "guessResult",
     "gameState",
 ]);
 export const MessageType = MessageTypeSchema.enum;
@@ -78,6 +79,21 @@ export const GameStateMessageSchema = z.object({
 });
 export type GameStateMessage = z.infer<typeof GameStateMessageSchema>;
 
+export const MakeGuessMessageSchema = z.object({
+    type: z.literal(MessageType.makeGuess),
+    roomId: z.string(),
+    appId: z.number().int(),
+});
+export type MakeGuessMessage = z.infer<typeof MakeGuessMessageSchema>;
+
+export const GuessResultMessageSchema = z.object({
+    type: z.literal(MessageType.guessResult),
+    correct: z.boolean(),
+    score: z.number(),
+    appId: z.number().int(),
+});
+export type GuessResultMessage = z.infer<typeof GuessResultMessageSchema>;
+
 export const MessageSchema = z.discriminatedUnion("type", [
     JoinRoomMessageSchema,
     JoinedRoomMessageSchema,
@@ -87,6 +103,8 @@ export const MessageSchema = z.discriminatedUnion("type", [
     CreateRoomMessageSchema,
 
     StartRoundMessageSchema,
+    MakeGuessMessageSchema,
+    GuessResultMessageSchema,
     GameStateMessageSchema,
 ]);
 export type Message = z.infer<typeof MessageSchema>;

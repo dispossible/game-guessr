@@ -1,7 +1,7 @@
 import z from "zod";
 import { MessageSchema, MessageType } from "#shared/types/Message";
 import { handlePeerClose, initNewRoom, joinRoom, leaveRoom } from "../utils/roomStore";
-import { startRound } from "../utils/roundStore";
+import { startRound, submitGuess } from "../utils/roundStore";
 
 export default defineWebSocketHandler({
     open(peer) {
@@ -45,6 +45,10 @@ export default defineWebSocketHandler({
                     roundDuration: data.roundDuration,
                     difficulty: data.difficulty,
                 }).catch((err) => console.error("[ws] startRound failed:", err));
+                break;
+
+            case MessageType.makeGuess:
+                submitGuess(peer, data.roomId, data.appId);
                 break;
         }
     },

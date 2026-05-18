@@ -11,6 +11,7 @@ const SteamScreenshotSchema = z.looseObject({
 });
 
 export const SteamGameDetailsSchema = z.looseObject({
+    steam_appid: z.number().int(),
     name: z.string(),
     header_image: z.string().optional(),
     screenshots: z.array(SteamScreenshotSchema).default([]),

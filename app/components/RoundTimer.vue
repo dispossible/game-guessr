@@ -37,7 +37,6 @@ watch(
     align-items: center;
     justify-content: center;
     gap: 1.5ch;
-    padding: 2ch;
 }
 
 .roundLabel {

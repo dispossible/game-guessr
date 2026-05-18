@@ -45,7 +45,7 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
         </div>
         <div class="screenshotsContainer">
             <div class="mainWrapper">
-                <Transition name="main">
+                <Transition name="main" appear>
                     <img :key="mainScreenshot" :src="mainScreenshot" class="mainScreenshot" />
                 </Transition>
             </div>
@@ -53,20 +53,24 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
                 <img v-for="screenshot in thumbnails" :key="screenshot" :src="screenshot" class="thumbnail" />
             </TransitionGroup>
         </div>
+        <div class="guesser">
+            <GuesserInput />
+        </div>
     </div>
 </template>
 
 <style scoped>
 .roundGuesser {
     flex: 1;
-    padding: 2ch;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .countdown {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 1ch;
+    right: 1ch;
     z-index: 100;
 }
 
@@ -74,6 +78,7 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
     display: flex;
     flex-direction: column;
     gap: 1ch;
+    flex: 1;
 }
 
 .mainWrapper {
@@ -145,5 +150,15 @@ const thumbnails = computed(() => allScreenshots.value.slice(0, -1).reverse());
 /* Thumbnail move */
 .thumbnail-move {
     transition: all 300ms ease-in-out;
+}
+
+.guesser {
+    position: sticky;
+    bottom: 0;
+    padding-top: 2lh;
+    padding-bottom: 4ch;
+    background: linear-gradient(to bottom, transparent, hsl(from var(--color-bg) h s l / 0.8) 25%, var(--color-bg));
+    display: grid;
+    place-items: center;
 }
 </style>

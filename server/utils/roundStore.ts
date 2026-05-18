@@ -1,8 +1,9 @@
-import type { Difficulty, Round } from "#shared/types/GameState";
+import type { Difficulty, GameState, Round } from "#shared/types/GameState";
 import { GameStatus, RoundStatus } from "#shared/types/GameState";
 import { MessageType } from "#shared/types/Message";
 import { Peer } from "crossws";
 import { getRoomGameState, broadcastToRoom, getClientIdForPeer, registerRoomDeletedCallback } from "./roomStore";
+import { sendMessage } from "./message";
 import { pickRandomGame } from "./gameStore";
 import { getSteamGameDetails, getScreenshots, type SteamGameDetails } from "./steamApi";
 
@@ -11,6 +12,9 @@ registerRoomDeletedCallback((roomId) => {
     usedAppIds.delete(roomId);
     activeGame.delete(roomId);
 });
+
+const MIN_SCORE = 1;
+const MAX_SCORE = 100;
 
 const ROUND_START_DELAY_MS = 5_000;
 
@@ -40,6 +44,27 @@ export function getActiveGame(roomId: string): SteamGameDetails | undefined {
     return activeGame.get(roomId);
 }
 
+function completeRound(roomId: string, gameState: GameState, round: Round) {
+    if (round.status === RoundStatus.completed) return;
+
+    round.status = RoundStatus.completed;
+
+    const details = activeGame.get(roomId);
+    if (details) {
+        round.gameName = details.name;
+        round.headerImage = details.header_image;
+    }
+
+    if (gameState.rounds.length === gameState.roundCount) {
+        gameState.status = GameStatus.finished;
+    }
+
+    // Cancel all pending round timers (start + end) so the end timer doesn't fire again
+    clearRoomTimers(roomId);
+
+    broadcastToRoom(roomId, { type: MessageType.gameState, gameState });
+}
+
 function scheduleRoundTimers(roomId: string, round: Round) {
     const gameState = getRoomGameState(roomId);
     if (!gameState) return;
@@ -52,16 +77,7 @@ function scheduleRoundTimers(roomId: string, round: Round) {
     addTimer(roomId, startTimer);
 
     const endTimer = setTimeout(() => {
-        round.status = RoundStatus.completed;
-        const details = activeGame.get(roomId);
-        if (details) {
-            round.gameName = details.name;
-            round.headerImage = details.header_image;
-        }
-        if (gameState.rounds.length === gameState.roundCount) {
-            gameState.status = GameStatus.finished;
-        }
-        broadcastToRoom(roomId, { type: MessageType.gameState, gameState });
+        completeRound(roomId, gameState, round);
     }, ROUND_START_DELAY_MS + gameState.roundDuration);
     endTimer.unref?.();
     addTimer(roomId, endTimer);
@@ -157,4 +173,43 @@ export async function startRound(peer: Peer, roomId: string, settings: RoundSett
     scheduleRoundTimers(roomId, round);
 
     broadcastToRoom(roomId, { type: MessageType.gameState, gameState });
+}
+
+export function submitGuess(peer: Peer, roomId: string, appId: number) {
+    const clientId = getClientIdForPeer(peer);
+    if (!clientId) return;
+
+    const gameState = getRoomGameState(roomId);
+    if (!gameState) return;
+
+    const round = gameState.rounds.at(-1);
+    if (!round || round.status !== RoundStatus.inProgress) return;
+
+    // Idempotent — ignore if the player already guessed correctly this round
+    if (round.guesses.some((g) => g.playerId === clientId && g.correct)) return;
+
+    const details = activeGame.get(roomId);
+    const correct = details !== undefined && appId === details.steam_appid;
+
+    const fraction = (Date.now() - round.startTime) / (round.endTime - round.startTime);
+    const score = correct
+        ? Math.max(MIN_SCORE, Math.round(MAX_SCORE - (MAX_SCORE - MIN_SCORE) * Math.min(1, Math.max(0, fraction))))
+        : 0;
+
+    round.guesses.push({ playerId: clientId, guess: appId, score, correct });
+
+    if (correct) {
+        const player = gameState.players.find((p) => p.id === clientId);
+        if (player) player.score += score;
+    }
+
+    sendMessage(peer, { type: MessageType.guessResult, correct, score, appId });
+
+    if (correct) {
+        const correctPlayerIds = new Set(round.guesses.filter((g) => g.correct).map((g) => g.playerId));
+        const allGuessed = gameState.players.every((p) => correctPlayerIds.has(p.id));
+        if (allGuessed) {
+            completeRound(roomId, gameState, round);
+        }
+    }
 }
