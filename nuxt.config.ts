@@ -4,10 +4,24 @@ export default defineNuxtConfig({
     devtools: { enabled: true },
     modules: ["@pinia/nuxt"],
     css: ["~/assets/css/main.css"],
+    app: {
+        head: {
+            style: [
+                // We have to force this at the top level so no styling is inlined before the layers are in place.
+                { innerHTML: "@layer vars, reset, base, component, utils;" },
+            ],
+        },
+    },
     nitro: {
         experimental: {
             websocket: true,
         },
+        serverAssets: [
+            {
+                baseName: "data",
+                dir: "./server/data",
+            },
+        ],
     },
     vite: {
         plugins: [

@@ -33,7 +33,7 @@ onMounted(() => {
     display: grid;
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 4fr;
+    grid-template-columns: 300px 4fr;
 }
 
 .error {
